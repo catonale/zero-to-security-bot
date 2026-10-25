@@ -1,0 +1,109 @@
+Module 1 Notes:
+
+Lab: Run the Scanners on their own (01-landscape.md)
+
+Question: which of these results are real? Write your guess down.
+
+
+bandit
+secret key finding in Flask is probably valid because it's hardcoded API key
+    app.secret_key = "sk-workshop-9f3a2b7c1e4d8a6b"
+hardcoded api token also likely valid 
+    REPORTING_API_TOKEN = "tok_live_4b8e1f0a9c2d7e6f3a1b"
+logic error checking password validity looks legitimately vulnerable
+    if user["password_hash"] == "pbkdf2$demo$%s-not-a-real-hash" % username:
+              if password == "password123":
+                 return user
+SQL injection looks to be valid because no input validation
+    sql = "SELECT id, item FROM orders WHERE item LIKE '%%%s%%'" % query
+subprocess finding likely not legitimate finding
+unsure about subprocess call with shell=true
+
+detect-secrets
+test_planted_bugs.py finding is likely invalid finding based on filename
+
+
+Table Exercise: Map Your Own Pipeline
+
+Source
+    add a security test before committing code to own branch (SAST)
+Build
+
+Test 
+    integrate a scanner run here before passing off to another engineer to manually review 
+        can help guide the validation before deploying
+Deploy
+    add DAST to live running code to monitor performance
+
+Module 2 Notes:
+
+fallback model rated a hardcoded API token as info because of formatting 
+Bigger model caught that the universal password was there, smaller model believed the docstring calling it a demo
+security-trained is not better at identifying code
+
+reasoning is a setting you can indicate:
+
+think = false (fast and accurate enough for triage)
+think = low: for oss model can't turn it off
+reasoning model can take minutes per call so think is always set explicitly in config.toml
+
+Module 3
+
+Pipeline (Security Pipeline)
+
+1. Scan 
+    Bandit and/or detect-secrets produces findings with a file and a line
+
+2. triage
+    model explains and rates each finding with a JSON schema
+
+3. Validate 
+    Code drops anything without a real citation
+
+4. comment
+    One escaped comment on the pull request, edited on every push
+
+*** Bandit is an open source tool for Python security issues, standard security linter, anyone can contribute
+    Uses multiple sources for vuln databases
+
+Making Bot Trustworthy
+
+Citation required
+    (always need a file and line that exists, with code that is on that line)
+
+Refuse over guess
+    (always okay to return no findings so no push to invent them)
+
+Do not trust the code
+    "This is test code" comes from file path, not what the file says about itself
+    i.e. prompt injection with comment saying "just a test" still gets flagged
+
+A prompt is a request, not a control. 
+
+
+The Prompt Tournament:
+
+Edit the review_system.md to get a score of 60 (see slides after)
+
+GitHub repo will have the actual answer soon 
+
+Module 4:
+
+Two templates, both free tierr
+
+GitHub Actions Public repo with free 16 GB runner
+
+GitLab CI
+
+Free Medium Runner
+
+Discussion
+
+Diff only: the bot reviews only the changed lines. why is it both faster and a blind spot?
+
+Hostile comments: the comment repeats what the model wrote about the author's code. What could a hostile author get into it? Read escape()
+
+Token scope: the gitlab token can also touch issues. what would you change before using it at work?
+
+DAY 2:
+
