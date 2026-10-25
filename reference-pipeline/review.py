@@ -164,6 +164,101 @@ def read_input_text(path):
         return data.decode("utf-16")
     return data.decode("utf-8-sig")
 
+# ------------------------------------------------------------ suppressions
+
+SUPPRESSIONS_FILE = "security-suppressions.toml"
+
+
+def load_suppressions(path, ref=None):
+    """Read approved bypasses. Each entry must say what, why, and who approved.
+
+    The file is reviewed like any other code change; that review is the
+    real control. approved_by is a record of the decision, not a login.
+
+    With ref (CI sets REVIEW_SUPPRESSIONS_REF to the target branch), the
+    file is read from that branch, not from the pull request, so a pull
+    request cannot approve a bypass of its own findings.
+    """
+    path = Path(path)
+    try:
+        if ref:
+            shown = subprocess.run(
+                ["git", "show", "%s:%s" % (ref, _relative(path))],
+                cwd=REPO_ROOT, capture_output=True, text=True,
+            )
+            if shown.returncode != 0:
+                return []
+            entries = tomllib.loads(shown.stdout).get("suppress", [])
+        else:
+            if not path.is_file():
+                return []
+            with path.open("rb") as handle:
+                entries = tomllib.load(handle).get("suppress", [])
+    except (tomllib.TOMLDecodeError, OSError) as exc:
+        warn("ignoring %s: %s" % (path.name, exc))
+        return []
+    today = datetime.now(timezone.utc).date()
+    valid = []
+    for n, entry in enumerate(entries, 1):
+        label = "%s entry %d" % (path.name, n)
+        if not isinstance(entry, dict) or not str(entry.get("file", "")).strip():
+            warn("%s ignored: it needs a file." % label)
+            continue
+        if "line" not in entry and not str(entry.get("match", "")).strip():
+            warn("%s ignored: it needs a line or a match." % label)
+            continue
+        if not str(entry.get("reason", "")).strip() or not str(entry.get("approved_by", "")).strip():
+            warn("%s ignored: a bypass needs both a reason and approved_by." % label)
+            continue
+        expires = entry.get("expires")
+        if expires is not None and hasattr(expires, "year") and expires < today:
+            warn("%s ignored: it expired on %s." % (label, expires))
+            continue
+        valid.append(entry)
+    return valid
+
+
+def suppression_for(finding, entries):
+    """The first approved entry that covers this finding, or None."""
+    for entry in entries:
+        if str(entry["file"]).strip().replace("\\", "/") != finding["file"]:
+            continue
+        rule = str(entry.get("rule", "")).strip()
+        if rule and rule not in (finding.get("scanner_ref") or ""):
+            continue
+        if "line" in entry:
+            try:
+                line = int(entry["line"])
+            except (TypeError, ValueError):
+                continue
+            if not finding["line_start"] <= line <= finding["line_end"]:
+                continue
+        match = str(entry.get("match", "")).strip()
+        if match:
+            try:
+                lines = (REPO_ROOT / finding["file"]).read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            cited = "\n".join(lines[finding["line_start"] - 1:finding["line_end"]])
+            if match not in cited:
+                continue
+        return entry
+    return None
+
+
+def apply_suppressions(findings, path, ref=None):
+    """Mark approved bypasses on the findings. Nothing is removed."""
+    entries = load_suppressions(path, ref)
+    for finding in findings:
+        entry = suppression_for(finding, entries) if entries else None
+        if entry:
+            finding["suppressed"] = {
+                "reason": str(entry["reason"]).strip(),
+                "approved_by": str(entry["approved_by"]).strip(),
+            }
+    return findings
+
+
 def load_config(path=CONFIG_PATH):
     """Read config.toml and apply environment overrides."""
     if not path.is_file():
@@ -956,6 +1051,11 @@ def build_parser():
         action="store_true",
         help="with --no-scanner, let the model read named functions elsewhere in the repository first",
     )
+    parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help="after triaging scanner findings, also cold-review each file for what no scanner flags",
+    )
     return parser
 
 
@@ -1040,25 +1140,35 @@ def main(argv=None):
     findings = []
     rendered = []
 
-    if args.no_scanner:
+    if not args.no_scanner:
+        findings, rendered = triage_findings(config, prompts, scanner_findings, args.dry_run)
+
+    if args.no_scanner or args.sweep:
         # Test files hold the exploits, so a cold review of them reports
         # the bugs they test as if the bugs lived in the tests. The
         # scanners still check test files; only the cold review skips them.
         skipped = [p for p in files if looks_like_test_code(_relative(p))]
         if skipped:
             warn("the cold review skips %d test file(s); the scanner path still checks them." % len(skipped))
+        seen = [(f["file"], f["line_start"]) for f in findings]
+
+        def already_reported(f):
+            # The cold review often restates a scanner finding a line or two away.
+            return any(f["file"] == file and abs(f["line_start"] - line) <= 3 for file, line in seen)
+
         for path in files:
             rel = _relative(path)
             if path in skipped:
                 continue
+            # With --sweep, the scanner findings are already explained, so
+            # the cold review is told about them and asked for the rest.
+            known = [s for s in scanner_findings if s["file"] == rel]
             found, render = sweep_file(
-                config, prompts, rel, [], args.dry_run,
+                config, prompts, rel, known, args.dry_run,
                 changed=(changed_lines or {}).get(rel),
             )
-            findings += found
+            findings += [f for f in found if not already_reported(f)]
             rendered += render
-    else:
-        findings, rendered = triage_findings(config, prompts, scanner_findings, args.dry_run)
 
     if args.dry_run:
         print(json.dumps(
@@ -1080,6 +1190,11 @@ def main(argv=None):
 
     severity_order = {name: index for index, name in enumerate(SEVERITIES)}
     findings.sort(key=lambda f: (severity_order.get(f["severity"], 99), f["file"], f["line_start"]))
+    apply_suppressions(
+        findings,
+        REPO_ROOT / config["review"].get("suppressions_file", SUPPRESSIONS_FILE),
+        os.environ.get("REVIEW_SUPPRESSIONS_REF") or None,
+    )
 
     no_findings_reason = None
     if not findings:

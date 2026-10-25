@@ -115,6 +115,12 @@ $env:REVIEW_MODEL = "gpt-oss:20b"; $env:REVIEW_THINK = "low"; & .\.venv\Scripts\
 Remove-Item Env:REVIEW_MODEL, Env:REVIEW_THINK
 ```
 
+**If GPT-OSS reports no findings**
+
+```powershell
+git pull --ff-only
+```
+
 **What does more thinking buy?**
 
 ```powershell
@@ -235,9 +241,22 @@ python reference-pipeline/post_comment.py ci-templates/lab/hostile-findings.json
 
 **CI setup (ci-templates/README.md): Before you start**
 
+> **`mine` is a nickname for your repository.** Replace `<your-repository-url>` with your new repository's URL (for example `https://github.com/jsmith/review-bot-practice.git`), never the instructor's. If git says `remote mine already exists`, fix it with `git remote set-url mine <your-repository-url>`.
+
 ```powershell
 git remote add mine <your-repository-url>
 git push mine HEAD:main
+```
+
+**CI setup (ci-templates/README.md): Or fork it (GitHub only)**
+
+> **Three fork gotchas.**
+> 1. **Turn Actions on.** A new fork has workflows switched off. Open your fork's **Actions** tab and click the green button to enable them, or nothing ever runs.
+> 2. **Point the pull request at your fork.** When you open the pull request, GitHub sets the base to the instructor's repository. Change **base repository** to your fork before you click Create, or your pull request lands in the instructor's repository.
+> 3. **GitLab cannot fork a GitHub repository.** On GitLab, create a new project and use the steps above.
+
+```powershell
+git remote add mine https://github.com/<your-username>/isc2-2026-ai-code-review-workshop.git
 ```
 
 **CI setup (ci-templates/README.md): GitHub Actions**
@@ -272,6 +291,13 @@ git push mine add-order-importer
 ## 05. Attacking Your Own Bot
 
 Full guide: [05-attacking-your-bot.md](05-attacking-your-bot.md)
+
+**Before you start: get today's bot**
+
+```powershell
+git switch main
+git pull https://github.com/cameronhopkin/isc2-2026-ai-code-review-workshop.git main
+```
 
 **How the attack lab works**
 
@@ -389,6 +415,35 @@ $env:REVIEW_MODEL = "gpt-oss:20b"; $env:REVIEW_THINK = "low"
 python reference-pipeline/smoke.py
 python eval-harness/capstone.py --reps 1
 Remove-Item Env:REVIEW_MODEL, Env:REVIEW_THINK
+```
+
+**Suggested fixes, one click**
+
+```powershell
+git switch add-order-importer
+git merge --no-edit main
+git diff main...HEAD > pr.diff
+python reference-pipeline/review.py --diff pr.diff --sweep > findings.json
+python reference-pipeline/post_comment.py findings.json --print --suggest --diff pr.diff
+git switch main
+```
+
+**Bypasses, as code**
+
+```powershell
+Set-Content -Encoding ascii security-suppressions.toml @'
+[[suppress]]
+file = "target-app/importer.py"
+match = "verify=False"
+reason = "Partner feed is on the internal network. SEC-123 adds the CA bundle."
+approved_by = "appsec-oncall"
+expires = 2026-11-30
+'@
+```
+
+```powershell
+python reference-pipeline/review.py --diff pr.diff --sweep > findings.json
+python reference-pipeline/post_comment.py findings.json --print
 ```
 
 ## 08. Capstone
