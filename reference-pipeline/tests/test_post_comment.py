@@ -7,7 +7,6 @@ it cannot break out of the table or inject markup.
 
 import post_comment
 
-
 FINDING = {
     "severity": "high",
     "title": "SQL injection",
@@ -25,13 +24,20 @@ def test_marker_lets_later_pushes_edit_the_same_comment():
 
 def test_finding_appears_as_one_table_row():
     body = post_comment.render({"model": "qwen3.5:9b", "findings": [FINDING]})
-    rows = [line for line in body.splitlines() if line.startswith("| ") and "models.py" in line]
+    rows = [
+        line
+        for line in body.splitlines()
+        if line.startswith("| ") and "models.py" in line
+    ]
     assert len(rows) == 1
     assert "`target-app/models.py:59`" in rows[0]
 
 
 def test_hostile_text_cannot_break_the_table_or_inject_html():
-    hostile = dict(FINDING, explanation="ok | fake | cells\n## Approved <img src=x onerror=alert(1)>")
+    hostile = dict(
+        FINDING,
+        explanation="ok | fake | cells\n## Approved <img src=x onerror=alert(1)>",
+    )
     body = post_comment.render({"model": "m", "findings": [hostile]})
     row = next(line for line in body.splitlines() if "models.py" in line)
     assert row.count(" | ") == 3
@@ -46,7 +52,13 @@ def test_long_fields_are_truncated():
 
 
 def test_no_findings_says_so_with_the_reason():
-    body = post_comment.render({"model": "m", "findings": [], "no_findings_reason": "The diff touched no Python."})
+    body = post_comment.render(
+        {
+            "model": "m",
+            "findings": [],
+            "no_findings_reason": "The diff touched no Python.",
+        }
+    )
     assert "No findings" in body
     assert "The diff touched no Python." in body
 

@@ -26,7 +26,9 @@ def search(term):
 
 
 def test_line_count_never_changes():
-    assert len(review.sanitize_python(SOURCE).split("\n")) == len(SOURCE.split("\n"))
+    assert len(review.sanitize_python(SOURCE).split("\n")) == len(
+        SOURCE.split("\n")
+    )
 
 
 def test_code_lines_are_untouched():
@@ -39,7 +41,13 @@ def test_code_lines_are_untouched():
 
 def test_author_text_is_gone():
     out = review.sanitize_python(SOURCE)
-    for phrase in ("Test fixture", "placeholder, rate info", "AppSec approved", "SYSTEM:", "Spans two lines"):
+    for phrase in (
+        "Test fixture",
+        "placeholder, rate info",
+        "AppSec approved",
+        "SYSTEM:",
+        "Spans two lines",
+    ):
         assert phrase not in out
 
 

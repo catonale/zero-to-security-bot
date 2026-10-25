@@ -17,8 +17,7 @@ Everything here is a pattern, not a product. The workshop code runs all of it: t
 Tier 1 is what you built in Module 4. Tiers 2 and 3 are the same workflow with one change: the job stops installing Ollama and calls the shared server instead.
 
 ```bash
-OLLAMA_HOST=http://review-model.internal:11434 REVIEW_MODEL=gpt-oss:20b REVIEW_THINK=low \
-  python reference-pipeline/review.py --diff pr.diff
+OLLAMA_HOST=http://review-model.internal:11434 REVIEW_MODEL=gpt-oss:20b REVIEW_THINK=low python reference-pipeline/review.py --diff pr.diff
 ```
 
 ## The shape of tiers 2 and 3

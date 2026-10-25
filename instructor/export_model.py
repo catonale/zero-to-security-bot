@@ -30,7 +30,9 @@ import shutil
 import sys
 from pathlib import Path
 
-DEFAULT_MODELS_DIR = Path(os.environ.get("OLLAMA_MODELS", Path.home() / ".ollama" / "models"))
+DEFAULT_MODELS_DIR = Path(
+    os.environ.get("OLLAMA_MODELS", Path.home() / ".ollama" / "models")
+)
 CHUNK = 8 * 1024 * 1024
 
 
@@ -64,16 +66,29 @@ def blob_name(digest):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Copy one Ollama model to a USB stick.")
-    parser.add_argument("destination", help="the stick, for example /Volumes/WORKSHOP")
-    parser.add_argument("--model", default="qwen3.5:9b", help="default: qwen3.5:9b")
-    parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR,
-                        help="where Ollama keeps models (default: $OLLAMA_MODELS or ~/.ollama/models)")
+    parser = argparse.ArgumentParser(
+        description="Copy one Ollama model to a USB stick."
+    )
+    parser.add_argument(
+        "destination", help="the stick, for example /Volumes/WORKSHOP"
+    )
+    parser.add_argument(
+        "--model", default="qwen3.5:9b", help="default: qwen3.5:9b"
+    )
+    parser.add_argument(
+        "--models-dir",
+        type=Path,
+        default=DEFAULT_MODELS_DIR,
+        help="where Ollama keeps models (default: $OLLAMA_MODELS or ~/.ollama/models)",
+    )
     args = parser.parse_args(argv)
 
     source_manifest = manifest_path(args.models_dir, args.model)
     if not source_manifest.is_file():
-        fail("%s is not in %s. Pull it first: ollama pull %s" % (args.model, args.models_dir, args.model))
+        fail(
+            "%s is not in %s. Pull it first: ollama pull %s"
+            % (args.model, args.models_dir, args.model)
+        )
 
     manifest = json.loads(source_manifest.read_text(encoding="utf-8"))
     entries = [manifest["config"]] + manifest.get("layers", [])
@@ -88,19 +103,31 @@ def main(argv=None):
 
     free = shutil.disk_usage(destination).free
     if free < total:
-        fail("the stick has %.1f GB free and the model needs %.1f GB." % (free / 1e9, total / 1e9))
+        fail(
+            "the stick has %.1f GB free and the model needs %.1f GB."
+            % (free / 1e9, total / 1e9)
+        )
 
-    print("Copying %s, %d files, %.1f GB, to %s" % (args.model, len(entries), total / 1e9, out_root))
+    print(
+        "Copying %s, %d files, %.1f GB, to %s"
+        % (args.model, len(entries), total / 1e9, out_root)
+    )
     for entry in entries:
         digest = entry["digest"]
         expected = digest.split(":", 1)[1]
         source = args.models_dir / "blobs" / blob_name(digest)
         target = out_blobs / blob_name(digest)
         if not source.is_file():
-            fail("blob %s is missing from %s. Re-pull the model: ollama pull %s"
-                 % (blob_name(digest), args.models_dir / "blobs", args.model))
+            fail(
+                "blob %s is missing from %s. Re-pull the model: ollama pull %s"
+                % (blob_name(digest), args.models_dir / "blobs", args.model)
+            )
 
-        if target.is_file() and target.stat().st_size == source.stat().st_size and sha256_of(target) == expected:
+        if (
+            target.is_file()
+            and target.stat().st_size == source.stat().st_size
+            and sha256_of(target) == expected
+        ):
             print("  ok (already there)  %s" % blob_name(digest)[:24])
             continue
 
@@ -110,14 +137,22 @@ def main(argv=None):
             if target.exists():
                 target.unlink()
             if entry.get("size", 0) >= 4 * 1024**3:
-                fail("could not write a %.1f GB file to the stick (%s). The stick is "
-                     "probably FAT32, which caps files at 4 GB. Reformat it as exFAT."
-                     % (entry["size"] / 1e9, error.strerror))
+                fail(
+                    "could not write a %.1f GB file to the stick (%s). The stick is "
+                    "probably FAT32, which caps files at 4 GB. Reformat it as exFAT."
+                    % (entry["size"] / 1e9, error.strerror)
+                )
             fail("copying %s failed: %s" % (blob_name(digest), error))
         if sha256_of(target) != expected:
             target.unlink()
-            fail("%s did not verify after copying. Try another stick or port." % blob_name(digest))
-        print("  copied and verified  %s  %.1f GB" % (blob_name(digest)[:24], entry.get("size", 0) / 1e9))
+            fail(
+                "%s did not verify after copying. Try another stick or port."
+                % blob_name(digest)
+            )
+        print(
+            "  copied and verified  %s  %.1f GB"
+            % (blob_name(digest)[:24], entry.get("size", 0) / 1e9)
+        )
 
     target_manifest = out_root / source_manifest.relative_to(args.models_dir)
     target_manifest.parent.mkdir(parents=True, exist_ok=True)

@@ -9,7 +9,9 @@ Expect two refusals and a "not found". No model needed.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reference-pipeline"))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "reference-pipeline")
+)
 import review  # noqa: E402
 
 ATTEMPTS = [
@@ -23,7 +25,11 @@ def main():
     config = review.load_config()
     scope = review.repo_scope("target-app/app.py")
     for file, symbol in ATTEMPTS:
-        print(review.read_symbol({"file": file, "symbol": symbol}, scope, config)[1])
+        print(
+            review.read_symbol(
+                {"file": file, "symbol": symbol}, scope, config
+            )[1]
+        )
     return 0
 
 

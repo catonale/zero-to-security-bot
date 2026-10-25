@@ -9,7 +9,6 @@ import pytest
 
 import review
 
-
 PIPELINE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -27,7 +26,10 @@ def clear_connection_overrides(monkeypatch):
         ("127.0.0.1:11434", "http://127.0.0.1:11434"),
         ("model-server:11434", "http://model-server:11434"),
         ("http://model-server:11434/", "http://model-server:11434"),
-        ("https://models.example.test/ollama/", "https://models.example.test/ollama"),
+        (
+            "https://models.example.test/ollama/",
+            "https://models.example.test/ollama",
+        ),
         ("  localhost:11434/  ", "http://localhost:11434"),
         ("http://0.0.0.0:12345", "http://127.0.0.1:12345"),
         ("[::]:11434", "http://[::1]:11434"),
@@ -44,7 +46,9 @@ def test_review_normalizes_host(monkeypatch, host, expected):
 def test_review_normalizes_host_from_config(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text('[model]\nname = "test-model"\nhost = "localhost:12345"\n')
-    assert review.load_config(path)["model"]["host"] == "http://localhost:12345"
+    assert (
+        review.load_config(path)["model"]["host"] == "http://localhost:12345"
+    )
 
 
 @pytest.mark.parametrize(
@@ -76,7 +80,11 @@ def run_setup_config(host, model=None):
     if model is not None:
         env["REVIEW_MODEL"] = model
     return subprocess.run(
-        [sys.executable, str(PIPELINE_DIR / "ollama_config.py"), str(review.CONFIG_PATH)],
+        [
+            sys.executable,
+            str(PIPELINE_DIR / "ollama_config.py"),
+            str(review.CONFIG_PATH),
+        ],
         env=env,
         capture_output=True,
         text=True,
@@ -89,7 +97,10 @@ def run_setup_config(host, model=None):
     [
         ("0.0.0.0:11434", "http://127.0.0.1:11434"),
         ("localhost:11434", "http://localhost:11434"),
-        ("https://models.example.test/ollama/", "https://models.example.test/ollama"),
+        (
+            "https://models.example.test/ollama/",
+            "https://models.example.test/ollama",
+        ),
     ],
 )
 def test_setup_config_matches_review_config(monkeypatch, host, expected):
@@ -97,7 +108,9 @@ def test_setup_config_matches_review_config(monkeypatch, host, expected):
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [expected, "test-model"]
     monkeypatch.setenv("OLLAMA_HOST", host)
-    assert review.load_config()["model"]["host"] == result.stdout.splitlines()[0]
+    assert (
+        review.load_config()["model"]["host"] == result.stdout.splitlines()[0]
+    )
 
 
 def test_setup_config_rejects_invalid_host():
@@ -112,4 +125,7 @@ def test_setup_config_rejects_invalid_host():
 def test_setup_config_handles_quotes_as_data():
     result = run_setup_config("localhost:11434", "model'with-quote")
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines() == ["http://localhost:11434", "model'with-quote"]
+    assert result.stdout.splitlines() == [
+        "http://localhost:11434",
+        "model'with-quote",
+    ]

@@ -51,7 +51,10 @@ def order_invoice(order_id):
 
 '''
 DECORATOR = ("target-app/auth.py", "def require_order_access")
-ACCESS_WORDS = re.compile(r"author|owner|ownership|idor|bola|another user|other user|any user|any order|access control", re.I)
+ACCESS_WORDS = re.compile(
+    r"author|owner|ownership|idor|bola|another user|other user|any user|any order|access control",
+    re.I,
+)
 
 CONFIGS = {
     "diff only": [],
@@ -68,15 +71,19 @@ def apply_pull_request(root):
     after = before.replace(ANCHOR, ENDPOINT + ANCHOR, 1)
     path.write_text(after, encoding="utf-8")
     diff = difflib.unified_diff(
-        before.splitlines(keepends=True), after.splitlines(keepends=True),
-        fromfile="a/" + APP, tofile="b/" + APP,
+        before.splitlines(keepends=True),
+        after.splitlines(keepends=True),
+        fromfile="a/" + APP,
+        tofile="b/" + APP,
     )
     return "".join(diff), after
 
 
 def endpoint_lines(after):
     lines = after.split("\n")
-    start = next(i for i, l in enumerate(lines, 1) if "def order_invoice" in l) - 2
+    start = (
+        next(i for i, l in enumerate(lines, 1) if "def order_invoice" in l) - 2
+    )
     return start, start + ENDPOINT.count("\n") - 2
 
 
@@ -84,7 +91,17 @@ def decorator_lines(root):
     file, anchor = DECORATOR
     lines = (root / file).read_text(encoding="utf-8").split("\n")
     start = next(i for i, l in enumerate(lines, 1) if l.startswith(anchor))
-    end = next((i for i, l in enumerate(lines[start:], start + 1) if l.startswith("def ")), len(lines)) - 1
+    end = (
+        next(
+            (
+                i
+                for i, l in enumerate(lines[start:], start + 1)
+                if l.startswith("def ")
+            ),
+            len(lines),
+        )
+        - 1
+    )
     return start, end
 
 
@@ -95,7 +112,11 @@ def found_bola(findings, root, after):
         if not span:
             continue
         overlaps = f["line_start"] <= span[1] and f["line_end"] >= span[0]
-        if overlaps and f["severity"] != "info" and ACCESS_WORDS.search(f["title"]):
+        if (
+            overlaps
+            and f["severity"] != "info"
+            and ACCESS_WORDS.search(f["title"])
+        ):
             return f
     return None
 
@@ -106,11 +127,22 @@ def run_once(flags):
         diff, after = apply_pull_request(root)
         (root / "pr.diff").write_text(diff, encoding="utf-8")
         completed = subprocess.run(
-            [sys.executable, str(root / "reference-pipeline" / "review.py"), "--diff", "pr.diff", "--no-scanner", *flags],
-            cwd=root, capture_output=True, text=True,
+            [
+                sys.executable,
+                str(root / "reference-pipeline" / "review.py"),
+                "--diff",
+                "pr.diff",
+                "--no-scanner",
+                *flags,
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
         )
         if completed.returncode != 0:
-            run_attack.fail("review.py failed:\n%s" % completed.stderr.strip()[-600:])
+            run_attack.fail(
+                "review.py failed:\n%s" % completed.stderr.strip()[-600:]
+            )
         findings = json.loads(completed.stdout)["findings"]
         return found_bola(findings, root, after), findings
     finally:
@@ -122,7 +154,9 @@ def main(argv=None):
     # emoji and no typographic dashes. UTF-8 everywhere instead.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="Score the Module 8 capstone.")
+    parser = argparse.ArgumentParser(
+        description="Score the Module 8 capstone."
+    )
     parser.add_argument("--reps", type=int, default=3)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -133,12 +167,34 @@ def main(argv=None):
         for rep in range(args.reps):
             hit, findings = run_once(flags)
             hits += bool(hit)
-            results.append({"config": name, "rep": rep + 1, "found": bool(hit),
-                            "where": "%s:%d" % (hit["file"], hit["line_start"]) if hit else None,
-                            "title": hit["title"] if hit else None, "findings": len(findings)})
+            results.append(
+                {
+                    "config": name,
+                    "rep": rep + 1,
+                    "found": bool(hit),
+                    "where": (
+                        "%s:%d" % (hit["file"], hit["line_start"])
+                        if hit
+                        else None
+                    ),
+                    "title": hit["title"] if hit else None,
+                    "findings": len(findings),
+                }
+            )
             if not args.json:
-                print("%-18s run %d: %s" % (name, rep + 1,
-                      "FOUND  %s:%d  %s" % (hit["file"], hit["line_start"], hit["title"]) if hit else "missed"))
+                print(
+                    "%-18s run %d: %s"
+                    % (
+                        name,
+                        rep + 1,
+                        (
+                            "FOUND  %s:%d  %s"
+                            % (hit["file"], hit["line_start"], hit["title"])
+                            if hit
+                            else "missed"
+                        ),
+                    )
+                )
         if not args.json:
             print("%-18s %d of %d\n" % (name, hits, args.reps))
     if args.json:

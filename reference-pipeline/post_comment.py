@@ -71,7 +71,11 @@ def escape(text, limit=MAX_FIELD):
 def location(f):
     where = "`%s:%s`" % (escape(f.get("file"), 200), f.get("line_start", "?"))
     if f.get("line_end") and f.get("line_end") != f.get("line_start"):
-        where = "`%s:%s-%s`" % (escape(f.get("file"), 200), f["line_start"], f["line_end"])
+        where = "`%s:%s-%s`" % (
+            escape(f.get("file"), 200),
+            f["line_start"],
+            f["line_end"],
+        )
     return where
 
 
@@ -91,7 +95,8 @@ def render(document):
     else:
         real = [f for f in findings if f.get("severity") != "info"]
         lines += [
-            "%d finding(s), %d marked informational." % (len(real), len(findings) - len(real)),
+            "%d finding(s), %d marked informational."
+            % (len(real), len(findings) - len(real)),
             "",
             "| Severity | Location | Finding | Why it matters |",
             "|---|---|---|---|",
@@ -100,7 +105,9 @@ def render(document):
             lines.append(
                 "| %s | %s | %s | %s |"
                 % (
-                    SEVERITY_ICON.get(f.get("severity"), escape(f.get("severity"), 20)),
+                    SEVERITY_ICON.get(
+                        f.get("severity"), escape(f.get("severity"), 20)
+                    ),
                     location(f),
                     escape(f.get("title"), 200),
                     escape(f.get("explanation")),
@@ -119,7 +126,9 @@ def render(document):
             lines.append(
                 "| %s | %s | %s | %s | %s |"
                 % (
-                    SEVERITY_ICON.get(f.get("severity"), escape(f.get("severity"), 20)),
+                    SEVERITY_ICON.get(
+                        f.get("severity"), escape(f.get("severity"), 20)
+                    ),
                     location(f),
                     escape(f.get("title"), 200),
                     escape(f["suppressed"].get("reason"), 300),
@@ -155,13 +164,20 @@ def github_target():
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
     if not (token and repo and event_path):
-        return None, "GITHUB_TOKEN, GITHUB_REPOSITORY, or GITHUB_EVENT_PATH is not set."
+        return (
+            None,
+            "GITHUB_TOKEN, GITHUB_REPOSITORY, or GITHUB_EVENT_PATH is not set.",
+        )
     event = json.loads(Path(event_path).read_text(encoding="utf-8"))
     number = (event.get("pull_request") or {}).get("number")
     if not number:
-        return None, "this run is not for a pull request, so there is nowhere to comment."
+        return (
+            None,
+            "this run is not for a pull request, so there is nowhere to comment.",
+        )
     return {
-        "list": "%s/repos/%s/issues/%s/comments?per_page=100" % (api, repo, number),
+        "list": "%s/repos/%s/issues/%s/comments?per_page=100"
+        % (api, repo, number),
         "create": "%s/repos/%s/issues/%s/comments" % (api, repo, number),
         "update": "%s/repos/%s/issues/comments/{id}" % (api, repo),
         "update_method": "PATCH",
@@ -184,7 +200,10 @@ def gitlab_target():
             "and add it as a masked CI/CD variable. See ci-templates/README.md."
         )
     if not (api and project and iid):
-        return None, "this pipeline is not for a merge request, so there is nowhere to comment."
+        return (
+            None,
+            "this pipeline is not for a merge request, so there is nowhere to comment.",
+        )
     base = "%s/projects/%s/merge_requests/%s/notes" % (api, project, iid)
     return {
         "list": base + "?per_page=100",
@@ -200,13 +219,23 @@ def post(target, body):
     headers = target["headers"]
     response = requests.get(target["list"], headers=headers, timeout=30)
     response.raise_for_status()
-    existing = next((c for c in response.json() if MARKER in (c.get("body") or "")), None)
+    existing = next(
+        (c for c in response.json() if MARKER in (c.get("body") or "")), None
+    )
     if existing:
         url = target["update"].format(id=existing["id"])
-        response = requests.request(target["update_method"], url, headers=headers, json={"body": body}, timeout=30)
+        response = requests.request(
+            target["update_method"],
+            url,
+            headers=headers,
+            json={"body": body},
+            timeout=30,
+        )
         action = "updated"
     else:
-        response = requests.post(target["create"], headers=headers, json={"body": body}, timeout=30)
+        response = requests.post(
+            target["create"], headers=headers, json={"body": body}, timeout=30
+        )
         action = "created"
     response.raise_for_status()
     return action
@@ -234,17 +263,23 @@ def suggestion_candidates(findings, changed):
 def suggestion_body(finding, fix, platform):
     """One line comment: what, the model-written patch, and a warning to read it."""
     if not fix.get("lines"):
-        return "\n".join([
-            FIX_MARKER % (finding["file"], finding["line_start"]),
-            "**Recommended fix: %s**" % escape(finding.get("title"), 200),
-            "",
-            escape(fix.get("rationale"), 800),
-            "",
-            "<sub>No one-click patch: the model was not confident it could fix this safely in place. "
-            "Written by the model, which read the code under review.</sub>",
-        ])
+        return "\n".join(
+            [
+                FIX_MARKER % (finding["file"], finding["line_start"]),
+                "**Recommended fix: %s**" % escape(finding.get("title"), 200),
+                "",
+                escape(fix.get("rationale"), 800),
+                "",
+                "<sub>No one-click patch: the model was not confident it could fix this safely in place. "
+                "Written by the model, which read the code under review.</sub>",
+            ]
+        )
     span = finding["line_end"] - finding["line_start"]
-    fence = "```suggestion" if platform == "github" else "```suggestion:-0+%d" % span
+    fence = (
+        "```suggestion"
+        if platform == "github"
+        else "```suggestion:-0+%d" % span
+    )
     parts = [
         FIX_MARKER % (finding["file"], finding["line_start"]),
         "**Suggested fix: %s**" % escape(finding.get("title"), 200),
@@ -265,15 +300,26 @@ def suggestion_body(finding, fix, platform):
 
 def github_line_api(target):
     """Review-comment endpoints and the head commit, from the Actions event."""
-    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+    event = json.loads(
+        Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8")
+    )
     pr = event["pull_request"]
     base = target["create"].replace("/issues/", "/pulls/")
-    return {"list": base + "?per_page=100", "create": base, "head": pr["head"]["sha"]}
+    return {
+        "list": base + "?per_page=100",
+        "create": base,
+        "head": pr["head"]["sha"],
+    }
 
 
 def github_line_payload(finding, body, head):
-    payload = {"body": body, "commit_id": head, "path": finding["file"],
-               "line": finding["line_end"], "side": "RIGHT"}
+    payload = {
+        "body": body,
+        "commit_id": head,
+        "path": finding["file"],
+        "line": finding["line_end"],
+        "side": "RIGHT",
+    }
     if finding["line_end"] != finding["line_start"]:
         payload.update(start_line=finding["line_start"], start_side="RIGHT")
     return payload
@@ -282,19 +328,35 @@ def github_line_payload(finding, body, head):
 def gitlab_line_api(target):
     """Discussion endpoint and the diff version a line position must name."""
     base = target["create"].rsplit("/notes", 1)[0]
-    response = requests.get(base + "/versions", headers=target["headers"], timeout=30)
+    response = requests.get(
+        base + "/versions", headers=target["headers"], timeout=30
+    )
     response.raise_for_status()
     version = response.json()[0]
-    return {"list": base + "/discussions?per_page=100", "create": base + "/discussions",
-            "shas": (version["base_commit_sha"], version["start_commit_sha"], version["head_commit_sha"])}
+    return {
+        "list": base + "/discussions?per_page=100",
+        "create": base + "/discussions",
+        "shas": (
+            version["base_commit_sha"],
+            version["start_commit_sha"],
+            version["head_commit_sha"],
+        ),
+    }
 
 
 def gitlab_line_payload(finding, body, shas):
     base_sha, start_sha, head_sha = shas
-    return {"body": body, "position": {
-        "position_type": "text", "base_sha": base_sha, "start_sha": start_sha, "head_sha": head_sha,
-        "new_path": finding["file"], "new_line": finding["line_start"],
-    }}
+    return {
+        "body": body,
+        "position": {
+            "position_type": "text",
+            "base_sha": base_sha,
+            "start_sha": start_sha,
+            "head_sha": head_sha,
+            "new_path": finding["file"],
+            "new_line": finding["line_start"],
+        },
+    }
 
 
 def existing_bodies(platform, api, headers):
@@ -315,22 +377,33 @@ def make_suggestions(document, diff_path):
     config = review.load_config()
     prompts = review.load_prompts()
     if "fix" not in prompts:
-        warn("prompts/review_system.md has no '## fix' section, so no fixes are suggested.")
+        warn(
+            "prompts/review_system.md has no '## fix' section, so no fixes are suggested."
+        )
         return []
     out = []
-    for finding in suggestion_candidates(document.get("findings") or [], changed):
+    for finding in suggestion_candidates(
+        document.get("findings") or [], changed
+    ):
         fix = fixes.suggest_fix(config, prompts, finding)
         if fix:
             out.append((finding, fix))
         else:
-            warn("no safe fix suggested for %s:%s." % (finding["file"], finding["line_start"]))
+            warn(
+                "no safe fix suggested for %s:%s."
+                % (finding["file"], finding["line_start"])
+            )
     return out
 
 
 def post_suggestions(platform, target, suggestions):
     """Post each fix once, as a line comment with the platform's apply button."""
     headers = target["headers"]
-    api = github_line_api(target) if platform == "github" else gitlab_line_api(target)
+    api = (
+        github_line_api(target)
+        if platform == "github"
+        else gitlab_line_api(target)
+    )
     seen = existing_bodies(platform, api, headers)
     posted = 0
     for finding, fix in suggestions:
@@ -338,19 +411,30 @@ def post_suggestions(platform, target, suggestions):
         if any(marker in body for body in seen):
             continue
         body = suggestion_body(finding, fix, platform)
-        payload = (github_line_payload(finding, body, api["head"]) if platform == "github"
-                   else gitlab_line_payload(finding, body, api["shas"]))
-        response = requests.post(api["create"], headers=headers, json=payload, timeout=30)
+        payload = (
+            github_line_payload(finding, body, api["head"])
+            if platform == "github"
+            else gitlab_line_payload(finding, body, api["shas"])
+        )
+        response = requests.post(
+            api["create"], headers=headers, json=payload, timeout=30
+        )
         if response.status_code >= 400:
-            warn("could not post the fix for %s:%s: HTTP %s %s"
-                 % (finding["file"], finding["line_start"], response.status_code, response.text[:200]))
+            warn(
+                "could not post the fix for %s:%s: HTTP %s %s"
+                % (
+                    finding["file"],
+                    finding["line_start"],
+                    response.status_code,
+                    response.text[:200],
+                )
+            )
             continue
         posted += 1
     return posted
 
 
 # ------------------------------------------------------------------- cli
-
 
 
 def read_input_text(path):
@@ -371,40 +455,72 @@ def main(argv=None):
     # emoji and no typographic dashes. UTF-8 everywhere instead.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    parser = argparse.ArgumentParser(description="Post review.py findings as a PR or MR comment.")
+    parser = argparse.ArgumentParser(
+        description="Post review.py findings as a PR or MR comment."
+    )
     parser.add_argument("findings", help="JSON file written by review.py")
-    parser.add_argument("--platform", choices=["github", "gitlab"], help="default: detected from the CI environment")
-    parser.add_argument("--print", action="store_true", help="print the comment instead of posting it")
-    parser.add_argument("--strict", action="store_true", help="exit 1 if posting fails")
-    parser.add_argument("--suggest", action="store_true",
-                        help="also post a one-click suggested fix on each finding's changed lines (needs --diff and the model)")
-    parser.add_argument("--diff", help="the diff the review ran on, so fixes go only on changed lines")
+    parser.add_argument(
+        "--platform",
+        choices=["github", "gitlab"],
+        help="default: detected from the CI environment",
+    )
+    parser.add_argument(
+        "--print",
+        action="store_true",
+        help="print the comment instead of posting it",
+    )
+    parser.add_argument(
+        "--strict", action="store_true", help="exit 1 if posting fails"
+    )
+    parser.add_argument(
+        "--suggest",
+        action="store_true",
+        help="also post a one-click suggested fix on each finding's changed lines (needs --diff and the model)",
+    )
+    parser.add_argument(
+        "--diff",
+        help="the diff the review ran on, so fixes go only on changed lines",
+    )
     args = parser.parse_args(argv)
     if args.suggest and not args.diff:
-        warn("--suggest needs --diff, so fixes land only on lines the change touched.")
+        warn(
+            "--suggest needs --diff, so fixes land only on lines the change touched."
+        )
         return 1 if args.strict else 0
 
     try:
         document = json.loads(read_input_text(args.findings))
     except (OSError, ValueError) as error:
-        warn("could not read %s: %s. Did review.py run?" % (args.findings, error))
+        warn(
+            "could not read %s: %s. Did review.py run?"
+            % (args.findings, error)
+        )
         return 1 if args.strict else 0
 
     body = render(document)
     if args.print:
         print(body)
-        suggestions = make_suggestions(document, args.diff) if args.suggest else []
+        suggestions = (
+            make_suggestions(document, args.diff) if args.suggest else []
+        )
         for finding, fix in suggestions:
-            print("\n--- suggested fix on %s:%s ---" % (finding["file"], finding["line_start"]))
+            print(
+                "\n--- suggested fix on %s:%s ---"
+                % (finding["file"], finding["line_start"])
+            )
             print(suggestion_body(finding, fix, args.platform or "github"))
         return 0
 
     platform = args.platform or detect_platform()
     if platform is None:
-        warn("not running in GitHub Actions or GitLab CI. Pass --print to see the comment.")
+        warn(
+            "not running in GitHub Actions or GitLab CI. Pass --print to see the comment."
+        )
         return 1 if args.strict else 0
 
-    target, problem = github_target() if platform == "github" else gitlab_target()
+    target, problem = (
+        github_target() if platform == "github" else gitlab_target()
+    )
     if problem:
         warn(problem)
         return 1 if args.strict else 0
@@ -412,7 +528,10 @@ def main(argv=None):
     try:
         action = post(target, body)
     except requests.RequestException as error:
-        warn("posting the comment failed: %s. Check the token's permissions." % error)
+        warn(
+            "posting the comment failed: %s. Check the token's permissions."
+            % error
+        )
         return 1 if args.strict else 0
 
     print("Comment %s." % action)
@@ -420,9 +539,20 @@ def main(argv=None):
     suggestions = make_suggestions(document, args.diff) if args.suggest else []
     if suggestions:
         try:
-            print("Posted %d suggested fix(es)." % post_suggestions(platform, target, suggestions))
-        except (requests.RequestException, KeyError, IndexError, ValueError) as error:
-            warn("posting suggested fixes failed: %s. The summary comment is unaffected." % error)
+            print(
+                "Posted %d suggested fix(es)."
+                % post_suggestions(platform, target, suggestions)
+            )
+        except (
+            requests.RequestException,
+            KeyError,
+            IndexError,
+            ValueError,
+        ) as error:
+            warn(
+                "posting suggested fixes failed: %s. The summary comment is unaffected."
+                % error
+            )
     return 0
 
 

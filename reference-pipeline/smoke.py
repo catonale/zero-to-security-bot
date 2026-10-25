@@ -98,7 +98,8 @@ def check_schema(document):
         missing = REQUIRED_FINDING_KEYS - set(finding)
         if missing:
             raise SmokeFailure(
-                "finding %d is missing %s." % (index, ", ".join(sorted(missing)))
+                "finding %d is missing %s."
+                % (index, ", ".join(sorted(missing)))
             )
 
         if finding["severity"] not in review.SEVERITIES:
@@ -120,7 +121,9 @@ def check_schema(document):
                 )
 
         if finding["line_end"] < finding["line_start"]:
-            raise SmokeFailure("finding %d has line_end before line_start." % index)
+            raise SmokeFailure(
+                "finding %d has line_end before line_start." % index
+            )
 
         if not str(finding["file"]).strip():
             raise SmokeFailure(
@@ -149,7 +152,8 @@ def check_required_bugs(document):
         raise SmokeFailure(
             "the review did not report:\n  %s\n"
             "Check that the model in config.toml is qwen3.5:9b with think = false. "
-            "See docs/MODEL_EVAL.md for which models pass." % "\n  ".join(missed)
+            "See docs/MODEL_EVAL.md for which models pass."
+            % "\n  ".join(missed)
         )
 
 
@@ -168,7 +172,9 @@ def check_dry_run(document):
     for index, prompt in enumerate(prompts):
         for key in ("system", "user"):
             if not str(prompt.get(key, "")).strip():
-                raise SmokeFailure("prompt %d has an empty '%s'." % (index, key))
+                raise SmokeFailure(
+                    "prompt %d has an empty '%s'." % (index, key)
+                )
         if "Numbered source:" not in prompt["user"]:
             raise SmokeFailure(
                 "prompt %d does not include numbered source, so the model "

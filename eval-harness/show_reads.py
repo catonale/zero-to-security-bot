@@ -11,7 +11,9 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reference-pipeline"))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent.parent / "reference-pipeline")
+)
 from review import read_input_text  # noqa: E402
 
 

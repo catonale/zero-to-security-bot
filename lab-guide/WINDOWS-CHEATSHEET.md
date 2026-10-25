@@ -322,6 +322,7 @@ python attack-lab/run_attack.py my-attack --reps 3
 ```powershell
 python attack-lab/run_attack.py my-attack --reps 3
 $env:REVIEW_SANITIZE = "1"; python attack-lab/run_attack.py my-attack --reps 3
+python attack-lab/run_attack.py my-attack --reps 3 --sweep
 Remove-Item Env:REVIEW_SANITIZE
 ```
 
@@ -337,6 +338,11 @@ Remove-Item attacked.json -ErrorAction SilentlyContinue
 Full guide: [06-defenses.md](06-defenses.md)
 
 **1. Input sanitization**
+
+> **How to turn a defense on.** Every command in this module goes in your terminal, from the repository root. You do not need to edit any file. Each defense is a switch:
+> - **For one command (this lab):** put `REVIEW_SANITIZE=1` in front of the command in bash, or run `$env:REVIEW_SANITIZE = "1"` first in PowerShell. That lets you compare off and on side by side. The audit log works the same way with `REVIEW_AUDIT_LOG=audit.jsonl`.
+> - **Permanently (how you would ship it):** in `reference-pipeline/config.toml`, change `sanitize_source = false` to `true`, or set `audit_log = "audit.jsonl"`.
+> - **PowerShell:** a `$env:` setting stays on for the whole window. Run the `Remove-Item Env:...` line after each block, or your next "off" run is really on. Check with `$env:REVIEW_SANITIZE` (empty means off).
 
 ```powershell
 python reference-pipeline/review.py --file target-app/app.py --dry-run > before.json

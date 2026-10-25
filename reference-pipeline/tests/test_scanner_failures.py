@@ -7,8 +7,9 @@ import pytest
 
 import review
 
-
-CLEAN_BANDIT = {"runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]}
+CLEAN_BANDIT = {
+    "runs": [{"tool": {"driver": {"name": "Bandit"}}, "results": []}]
+}
 CLEAN_SECRETS = {"results": {}}
 
 
@@ -30,11 +31,15 @@ def run_scanner(scanner):
         (0, "{}", ""),
     ],
 )
-def test_scanner_failure_is_actionable(scanner, returncode, stdout, stderr, monkeypatch, capsys):
+def test_scanner_failure_is_actionable(
+    scanner, returncode, stdout, stderr, monkeypatch, capsys
+):
     monkeypatch.setattr(
         review.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess([], returncode, stdout, stderr),
+        lambda *a, **k: subprocess.CompletedProcess(
+            [], returncode, stdout, stderr
+        ),
     )
     with pytest.raises(SystemExit) as exc:
         run_scanner(scanner)
@@ -51,11 +56,15 @@ def test_scanner_failure_is_actionable(scanner, returncode, stdout, stderr, monk
     ("scanner", "document"),
     [("bandit", CLEAN_BANDIT), ("detect-secrets", CLEAN_SECRETS)],
 )
-def test_successful_clean_scan_still_returns_no_findings(scanner, document, monkeypatch):
+def test_successful_clean_scan_still_returns_no_findings(
+    scanner, document, monkeypatch
+):
     monkeypatch.setattr(
         review.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess([], 0, json.dumps(document), ""),
+        lambda *a, **k: subprocess.CompletedProcess(
+            [], 0, json.dumps(document), ""
+        ),
     )
     assert run_scanner(scanner) == []
 
@@ -64,11 +73,15 @@ def test_successful_clean_scan_still_returns_no_findings(scanner, document, monk
     ("scanner", "returncode", "document"),
     [("bandit", 2, CLEAN_BANDIT), ("detect-secrets", 1, CLEAN_SECRETS)],
 )
-def test_failed_exit_with_valid_output_is_still_a_failure(scanner, returncode, document, monkeypatch):
+def test_failed_exit_with_valid_output_is_still_a_failure(
+    scanner, returncode, document, monkeypatch
+):
     monkeypatch.setattr(
         review.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess([], returncode, json.dumps(document), ""),
+        lambda *a, **k: subprocess.CompletedProcess(
+            [], returncode, json.dumps(document), ""
+        ),
     )
     with pytest.raises(SystemExit):
         run_scanner(scanner)
@@ -76,22 +89,34 @@ def test_failed_exit_with_valid_output_is_still_a_failure(scanner, returncode, d
 
 def test_bandit_exit_one_with_findings_is_success(monkeypatch):
     document = {
-        "runs": [{
-            "tool": {"driver": {"name": "Bandit"}},
-            "results": [{
-                "ruleId": "B105",
-                "message": {"text": "Hardcoded password"},
-                "locations": [{"physicalLocation": {
-                    "artifactLocation": {"uri": "target-app/app.py"},
-                    "region": {"startLine": 15},
-                }}],
-            }],
-        }],
+        "runs": [
+            {
+                "tool": {"driver": {"name": "Bandit"}},
+                "results": [
+                    {
+                        "ruleId": "B105",
+                        "message": {"text": "Hardcoded password"},
+                        "locations": [
+                            {
+                                "physicalLocation": {
+                                    "artifactLocation": {
+                                        "uri": "target-app/app.py"
+                                    },
+                                    "region": {"startLine": 15},
+                                }
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
     }
     monkeypatch.setattr(
         review.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess([], 1, json.dumps(document), ""),
+        lambda *a, **k: subprocess.CompletedProcess(
+            [], 1, json.dumps(document), ""
+        ),
     )
     findings = run_scanner("bandit")
     assert len(findings) == 1
@@ -99,16 +124,24 @@ def test_bandit_exit_one_with_findings_is_success(monkeypatch):
 
 
 @pytest.mark.parametrize("failed_scanner", ["bandit", "detect-secrets"])
-def test_review_does_not_print_clean_result_when_scanner_fails(failed_scanner, monkeypatch, capsys):
+def test_review_does_not_print_clean_result_when_scanner_fails(
+    failed_scanner, monkeypatch, capsys
+):
     def completed(command, **kwargs):
         scanner = "bandit" if "bandit" in command else "detect-secrets"
         if scanner == failed_scanner:
-            return subprocess.CompletedProcess(command, 1, "", "No module named scanner")
+            return subprocess.CompletedProcess(
+                command, 1, "", "No module named scanner"
+            )
         document = CLEAN_BANDIT if scanner == "bandit" else CLEAN_SECRETS
-        return subprocess.CompletedProcess(command, 0, json.dumps(document), "")
+        return subprocess.CompletedProcess(
+            command, 0, json.dumps(document), ""
+        )
 
     monkeypatch.setattr(review.subprocess, "run", completed)
     with pytest.raises(SystemExit) as exc:
-        review.main(["--file", str(review.REPO_ROOT / "target-app" / "app.py")])
+        review.main(
+            ["--file", str(review.REPO_ROOT / "target-app" / "app.py")]
+        )
     assert exc.value.code == 1
     assert capsys.readouterr().out == ""

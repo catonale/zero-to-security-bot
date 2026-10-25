@@ -6,7 +6,6 @@ a model actually produces and checks that bad output is dropped.
 
 import review
 
-
 GOOD = {
     "severity": "high",
     "title": "SQL injection",
@@ -67,11 +66,17 @@ def test_reversed_line_range_is_repaired():
 
 
 def test_line_beyond_the_end_of_the_file_is_dropped():
-    assert validate({"line_start": 9000, "line_end": 9000}, line_budget=100) is None
+    assert (
+        validate({"line_start": 9000, "line_end": 9000}, line_budget=100)
+        is None
+    )
 
 
 def test_line_inside_the_file_is_kept():
-    assert validate({"line_start": 59, "line_end": 59}, line_budget=100) is not None
+    assert (
+        validate({"line_start": 59, "line_end": 59}, line_budget=100)
+        is not None
+    )
 
 
 def test_unknown_severity_becomes_info_rather_than_dropping_the_finding():
@@ -119,14 +124,22 @@ def test_evidence_with_copied_line_numbers_still_matches():
 
 
 def test_evidence_matches_despite_whitespace():
-    spaced = "sql   =   " + GOOD["evidence"][len("sql = "):]
+    spaced = "sql   =   " + GOOD["evidence"][len("sql = ") :]
     assert validate({"evidence": spaced}) is not None
 
 
 def test_every_schema_key_is_present_on_a_validated_finding():
     expected = {
-        "id", "severity", "title", "file", "line_start", "line_end",
-        "evidence", "explanation", "scanner_ref", "confidence",
+        "id",
+        "severity",
+        "title",
+        "file",
+        "line_start",
+        "line_end",
+        "evidence",
+        "explanation",
+        "scanner_ref",
+        "confidence",
     }
     assert set(validate()) == expected
 
@@ -196,4 +209,6 @@ def test_evidence_wrapped_in_escaped_quotes_still_matches():
 
 
 def test_wrapping_does_not_let_other_text_through():
-    assert validate({"evidence": '"if password == \\"password123\\":"'}) is None
+    assert (
+        validate({"evidence": '"if password == \\"password123\\":"'}) is None
+    )

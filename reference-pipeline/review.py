@@ -103,7 +103,9 @@ SWEEP_READ_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": dict(FINDING_PROPERTIES, file={"type": "string"}),
+                "properties": dict(
+                    FINDING_PROPERTIES, file={"type": "string"}
+                ),
                 "required": ["file"] + list(FINDING_PROPERTIES),
             },
         },
@@ -151,7 +153,6 @@ def parse_think(value):
     )
 
 
-
 def read_input_text(path):
     """Read a file another tool wrote, whatever its encoding.
 
@@ -163,6 +164,7 @@ def read_input_text(path):
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         return data.decode("utf-16")
     return data.decode("utf-8-sig")
+
 
 # ------------------------------------------------------------ suppressions
 
@@ -184,7 +186,9 @@ def load_suppressions(path, ref=None):
         if ref:
             shown = subprocess.run(
                 ["git", "show", "%s:%s" % (ref, _relative(path))],
-                cwd=REPO_ROOT, capture_output=True, text=True,
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
             )
             if shown.returncode != 0:
                 return []
@@ -201,17 +205,30 @@ def load_suppressions(path, ref=None):
     valid = []
     for n, entry in enumerate(entries, 1):
         label = "%s entry %d" % (path.name, n)
-        if not isinstance(entry, dict) or not str(entry.get("file", "")).strip():
+        if (
+            not isinstance(entry, dict)
+            or not str(entry.get("file", "")).strip()
+        ):
             warn("%s ignored: it needs a file." % label)
             continue
         if "line" not in entry and not str(entry.get("match", "")).strip():
             warn("%s ignored: it needs a line or a match." % label)
             continue
-        if not str(entry.get("reason", "")).strip() or not str(entry.get("approved_by", "")).strip():
-            warn("%s ignored: a bypass needs both a reason and approved_by." % label)
+        if (
+            not str(entry.get("reason", "")).strip()
+            or not str(entry.get("approved_by", "")).strip()
+        ):
+            warn(
+                "%s ignored: a bypass needs both a reason and approved_by."
+                % label
+            )
             continue
         expires = entry.get("expires")
-        if expires is not None and hasattr(expires, "year") and expires < today:
+        if (
+            expires is not None
+            and hasattr(expires, "year")
+            and expires < today
+        ):
             warn("%s ignored: it expired on %s." % (label, expires))
             continue
         valid.append(entry)
@@ -236,10 +253,16 @@ def suppression_for(finding, entries):
         match = str(entry.get("match", "")).strip()
         if match:
             try:
-                lines = (REPO_ROOT / finding["file"]).read_text(encoding="utf-8", errors="replace").splitlines()
+                lines = (
+                    (REPO_ROOT / finding["file"])
+                    .read_text(encoding="utf-8", errors="replace")
+                    .splitlines()
+                )
             except OSError:
                 continue
-            cited = "\n".join(lines[finding["line_start"] - 1:finding["line_end"]])
+            cited = "\n".join(
+                lines[finding["line_start"] - 1 : finding["line_end"]]
+            )
             if match not in cited:
                 continue
         return entry
@@ -271,23 +294,45 @@ def load_config(path=CONFIG_PATH):
 
     model["name"] = os.environ.get("REVIEW_MODEL") or model.get("name")
     try:
-        model["host"] = normalize_ollama_host(os.environ.get("OLLAMA_HOST") or model.get("host"))
+        model["host"] = normalize_ollama_host(
+            os.environ.get("OLLAMA_HOST") or model.get("host")
+        )
     except ValueError as exc:
         fail(str(exc))
 
     if not model["name"]:
-        fail("no model configured. Set model.name in config.toml or REVIEW_MODEL.")
+        fail(
+            "no model configured. Set model.name in config.toml or REVIEW_MODEL."
+        )
 
-    model["think"] = parse_think(os.environ.get("REVIEW_THINK", model.get("think")))
+    model["think"] = parse_think(
+        os.environ.get("REVIEW_THINK", model.get("think"))
+    )
 
     review.setdefault("max_findings", 25)
     review.setdefault("ignored_rules", [])
     review.setdefault("excluded_paths", [])
-    sanitize = os.environ.get("REVIEW_SANITIZE", review.get("sanitize_source", False))
-    review["sanitize_source"] = str(sanitize).strip().lower() in ("1", "true", "on", "yes")
-    review["audit_log"] = os.environ.get("REVIEW_AUDIT_LOG", review.get("audit_log", ""))
-    repo_read = os.environ.get("REVIEW_REPO_READ", review.get("repo_read", False))
-    review["repo_read"] = str(repo_read).strip().lower() in ("1", "true", "on", "yes")
+    sanitize = os.environ.get(
+        "REVIEW_SANITIZE", review.get("sanitize_source", False)
+    )
+    review["sanitize_source"] = str(sanitize).strip().lower() in (
+        "1",
+        "true",
+        "on",
+        "yes",
+    )
+    review["audit_log"] = os.environ.get(
+        "REVIEW_AUDIT_LOG", review.get("audit_log", "")
+    )
+    repo_read = os.environ.get(
+        "REVIEW_REPO_READ", review.get("repo_read", False)
+    )
+    review["repo_read"] = str(repo_read).strip().lower() in (
+        "1",
+        "true",
+        "on",
+        "yes",
+    )
     return config
 
 
@@ -312,7 +357,10 @@ def load_prompts(path=PROMPT_PATH):
 
     for required in ("triage", "sweep"):
         if not sections.get(required):
-            fail("prompt file %s is missing a '## %s' section." % (path, required))
+            fail(
+                "prompt file %s is missing a '## %s' section."
+                % (path, required)
+            )
     return sections
 
 
@@ -381,15 +429,27 @@ def run_bandit(targets, excluded):
     )
     # Bandit returns 1 for findings, not just for failures.
     if completed.returncode not in (0, 1):
-        scanner_failed("bandit", "exited with status %s" % completed.returncode, completed.stderr)
+        scanner_failed(
+            "bandit",
+            "exited with status %s" % completed.returncode,
+            completed.stderr,
+        )
     if not completed.stdout.strip():
         scanner_failed("bandit", "produced no output", completed.stderr)
     try:
         document = json.loads(completed.stdout)
     except json.JSONDecodeError:
-        scanner_failed("bandit", "did not produce valid SARIF", completed.stderr)
-    if not isinstance(document, dict) or not isinstance(document.get("runs"), list) or not document["runs"]:
-        scanner_failed("bandit", "did not produce valid SARIF", completed.stderr)
+        scanner_failed(
+            "bandit", "did not produce valid SARIF", completed.stderr
+        )
+    if (
+        not isinstance(document, dict)
+        or not isinstance(document.get("runs"), list)
+        or not document["runs"]
+    ):
+        scanner_failed(
+            "bandit", "did not produce valid SARIF", completed.stderr
+        )
     return parse_sarif(document)
 
 
@@ -407,15 +467,29 @@ def run_detect_secrets(targets):
         command, cwd=REPO_ROOT, capture_output=True, text=True
     )
     if completed.returncode != 0:
-        scanner_failed("detect-secrets", "exited with status %s" % completed.returncode, completed.stderr)
+        scanner_failed(
+            "detect-secrets",
+            "exited with status %s" % completed.returncode,
+            completed.stderr,
+        )
     if not completed.stdout.strip():
-        scanner_failed("detect-secrets", "produced no output", completed.stderr)
+        scanner_failed(
+            "detect-secrets", "produced no output", completed.stderr
+        )
     try:
         document = json.loads(completed.stdout)
     except json.JSONDecodeError:
-        scanner_failed("detect-secrets", "did not produce valid JSON", completed.stderr)
-    if not isinstance(document, dict) or not isinstance(document.get("results"), dict):
-        scanner_failed("detect-secrets", "did not produce valid scan results", completed.stderr)
+        scanner_failed(
+            "detect-secrets", "did not produce valid JSON", completed.stderr
+        )
+    if not isinstance(document, dict) or not isinstance(
+        document.get("results"), dict
+    ):
+        scanner_failed(
+            "detect-secrets",
+            "did not produce valid scan results",
+            completed.stderr,
+        )
 
     findings = []
     for filename, items in document.get("results", {}).items():
@@ -427,7 +501,8 @@ def run_detect_secrets(targets):
                     "rule_name": item.get("type", ""),
                     "file": Path(filename).as_posix(),
                     "line": int(item.get("line_number", 0)),
-                    "message": "Possible %s detected." % item.get("type", "secret"),
+                    "message": "Possible %s detected."
+                    % item.get("type", "secret"),
                 }
             )
     return [f for f in findings if f["line"] > 0]
@@ -515,7 +590,10 @@ def read_staged_diff():
         text=True,
     )
     if completed.returncode != 0:
-        fail("git diff --cached failed. Are you inside a git repository? %s" % completed.stderr.strip())
+        fail(
+            "git diff --cached failed. Are you inside a git repository? %s"
+            % completed.stderr.strip()
+        )
     return completed.stdout
 
 
@@ -536,7 +614,11 @@ def looks_like_test_code(file_path):
     stem = Path(file_path).stem.lower()
     if any(marker in parts for marker in TEST_PATH_MARKERS):
         return True
-    return stem.startswith("test_") or stem.endswith("_test") or stem == "conftest"
+    return (
+        stem.startswith("test_")
+        or stem.endswith("_test")
+        or stem == "conftest"
+    )
 
 
 def build_triage_user(scanner, source):
@@ -544,9 +626,7 @@ def build_triage_user(scanner, source):
     harnesses measure exactly what production sends."""
     context = ""
     if looks_like_test_code(scanner["file"]):
-        context = (
-            "\nContext: this file is test or fixture code, not application code.\n"
-        )
+        context = "\nContext: this file is test or fixture code, not application code.\n"
     return (
         "Scanner: %s reported %s at line %d of %s\n"
         "Scanner message: %s\n%s\n"
@@ -594,7 +674,9 @@ def sanitize_python(text):
             and isinstance(node.value.value, str)
         ):
             first, last = node.lineno - 1, (node.end_lineno or node.lineno) - 1
-            indent = lines[first][: len(lines[first]) - len(lines[first].lstrip())]
+            indent = lines[first][
+                : len(lines[first]) - len(lines[first].lstrip())
+            ]
             lines[first] = indent + DOCSTRING_PLACEHOLDER
             for index in range(first + 1, last + 1):
                 lines[index] = ""
@@ -619,7 +701,9 @@ def numbered_source(path, sanitize=False):
         return None
     if sanitize and str(path).endswith(".py"):
         text = sanitize_python(text)
-    return "\n".join("%d: %s" % (i, line) for i, line in enumerate(text.splitlines(), 1))
+    return "\n".join(
+        "%d: %s" % (i, line) for i, line in enumerate(text.splitlines(), 1)
+    )
 
 
 # -------------------------------------------------------------- repo-read
@@ -628,7 +712,11 @@ def numbered_source(path, sanitize=False):
 def repo_scope(file_path):
     """The folder the repo-read tool may read: the reviewed file's top folder."""
     parts = Path(file_path).parts
-    return (REPO_ROOT / parts[0]).resolve() if len(parts) > 1 else REPO_ROOT.resolve()
+    return (
+        (REPO_ROOT / parts[0]).resolve()
+        if len(parts) > 1
+        else REPO_ROOT.resolve()
+    )
 
 
 def repo_index(scope, config):
@@ -639,14 +727,21 @@ def repo_index(scope, config):
         if excluded.intersection(path.relative_to(scope).parts):
             continue
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+            tree = ast.parse(
+                path.read_text(encoding="utf-8", errors="replace")
+            )
         except SyntaxError:
             continue
         names = [
-            n.name for n in tree.body
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            n.name
+            for n in tree.body
+            if isinstance(
+                n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            )
         ]
-        lines.append("%s: %s" % (_relative(path), ", ".join(names) or "(no functions)"))
+        lines.append(
+            "%s: %s" % (_relative(path), ", ".join(names) or "(no functions)")
+        )
     return "\n".join(lines)
 
 
@@ -661,7 +756,11 @@ def read_symbol(request, scope, config):
     label = "%s: %s" % (file_name, symbol)
     path = (REPO_ROOT / file_name).resolve()
     if scope not in path.parents or path.suffix != ".py" or not path.is_file():
-        return label, "refused: only Python files inside %s can be read." % _relative(scope)
+        return (
+            label,
+            "refused: only Python files inside %s can be read."
+            % _relative(scope),
+        )
     blocked = {"tests"} | set(config["review"]["excluded_paths"])
     if blocked & set(path.relative_to(scope).parts):
         return label, "refused: test and excluded files cannot be read."
@@ -673,20 +772,29 @@ def read_symbol(request, scope, config):
         return label, "refused: the file does not parse."
     node = next(
         (
-            n for n in ast.walk(tree)
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and n.name == symbol
+            n
+            for n in ast.walk(tree)
+            if isinstance(
+                n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            )
+            and n.name == symbol
         ),
         None,
     )
     if node is None:
-        return label, "not found: no function or class named %s in %s." % (symbol, file_name)
+        return label, "not found: no function or class named %s in %s." % (
+            symbol,
+            file_name,
+        )
 
     if config["review"]["sanitize_source"]:
         text = sanitize_python(text)
     source_lines = text.splitlines()
     first = min([node.lineno] + [d.lineno for d in node.decorator_list])
     last = min(node.end_lineno or node.lineno, first + READ_MAX_LINES - 1)
-    body = "\n".join("%d: %s" % (i, source_lines[i - 1]) for i in range(first, last + 1))
+    body = "\n".join(
+        "%d: %s" % (i, source_lines[i - 1]) for i in range(first, last + 1)
+    )
     return label, body
 
 
@@ -695,11 +803,15 @@ def gather_context(config, prompts, file_path, source, focus=""):
     scope = repo_scope(file_path)
     user = (
         "You are about to review %s. Readable code in this repository:\n%s\n\n"
-        "Numbered source of %s:\n%s" % (file_path, repo_index(scope, config), file_path, source)
+        "Numbered source of %s:\n%s"
+        % (file_path, repo_index(scope, config), file_path, source)
     )
     if focus:
         user += "\n\n" + focus
-    result = call_model(config, prompts["repo_read"], user, READ_REQUEST_SCHEMA) or {}
+    result = (
+        call_model(config, prompts["repo_read"], user, READ_REQUEST_SCHEMA)
+        or {}
+    )
     requests_made = (result.get("requests") or [])[:READ_MAX_REQUESTS]
     blocks = []
     read_files = set()
@@ -708,7 +820,9 @@ def gather_context(config, prompts, file_path, source, focus=""):
         audit(config, "repo-read", label, body[:200])
         blocks.append("Read %s\n%s" % (label, body))
         if not body.startswith(("refused:", "not found:")):
-            read_files.add(_relative(REPO_ROOT / str(request.get("file", "")).strip()))
+            read_files.add(
+                _relative(REPO_ROOT / str(request.get("file", "")).strip())
+            )
     return "\n\n".join(blocks), read_files
 
 
@@ -732,7 +846,9 @@ def call_model(config, system, user, schema):
     if model.get("think") is not None:
         payload["think"] = model["think"]
     try:
-        response = requests.post(url, json=payload, timeout=model.get("timeout_seconds", 300))
+        response = requests.post(
+            url, json=payload, timeout=model.get("timeout_seconds", 300)
+        )
     except requests.exceptions.ConnectionError:
         fail(
             "cannot reach Ollama at %s. Start the Ollama app or run 'ollama serve', "
@@ -750,14 +866,20 @@ def call_model(config, system, user, schema):
             "model '%s' is not present. Pull it with 'ollama pull %s'."
             % (model["name"], model["name"])
         )
-    if response.status_code == 400 and "does not support thinking" in response.text:
+    if (
+        response.status_code == 400
+        and "does not support thinking" in response.text
+    ):
         fail(
             "model '%s' has no reasoning mode, so think cannot be a level. "
             "Set model.think = false in config.toml, or unset REVIEW_THINK."
             % model["name"]
         )
     if response.status_code != 200:
-        fail("Ollama returned HTTP %s: %s" % (response.status_code, response.text[:300]))
+        fail(
+            "Ollama returned HTTP %s: %s"
+            % (response.status_code, response.text[:300])
+        )
 
     try:
         content = response.json()["message"]["content"]
@@ -816,9 +938,11 @@ def evidence_matches(evidence, file_path, start, end):
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return False
-    window = _squash(" ".join(lines[max(start - 2, 0):end + 1]))
+    window = _squash(" ".join(lines[max(start - 2, 0) : end + 1]))
     # Models often copy the "94: " prefixes from the numbered source.
-    quoted = [re.sub(r"^\s*\d+:\s?", "", line) for line in str(evidence).splitlines()]
+    quoted = [
+        re.sub(r"^\s*\d+:\s?", "", line) for line in str(evidence).splitlines()
+    ]
     first = next((line for line in quoted if line.strip()), "")
     probe = _squash(first)[:40]
     if probe and probe in window:
@@ -826,14 +950,22 @@ def evidence_matches(evidence, file_path, start, end):
     # Some models (gpt-oss) wrap the quote in a JSON-escaped string:
     # "app.secret_key = \"sk-...\"" for app.secret_key = "sk-...".
     unwrapped = first.strip()
-    if len(unwrapped) > 1 and unwrapped[0] == unwrapped[-1] and unwrapped[0] in "\"'`":
+    if (
+        len(unwrapped) > 1
+        and unwrapped[0] == unwrapped[-1]
+        and unwrapped[0] in "\"'`"
+    ):
         unwrapped = unwrapped[1:-1]
-    unwrapped = unwrapped.replace('\\"', '"').replace("\\'", "'").replace("\\\\", "\\")
+    unwrapped = (
+        unwrapped.replace('\\"', '"').replace("\\'", "'").replace("\\\\", "\\")
+    )
     probe = _squash(unwrapped)[:40]
     return bool(probe) and probe in window
 
 
-def validate_finding(candidate, file_path, scanner_refs=None, line_budget=None):
+def validate_finding(
+    candidate, file_path, scanner_refs=None, line_budget=None
+):
     """Enforce citation-required. Returns a finding, or None.
 
     A finding without a file and a usable line range is not a finding. It
@@ -855,7 +987,12 @@ def validate_finding(candidate, file_path, scanner_refs=None, line_budget=None):
 
     start = candidate.get("line_start")
     end = candidate.get("line_end")
-    if not isinstance(start, int) or not isinstance(end, int) or start < 1 or end < 1:
+    if (
+        not isinstance(start, int)
+        or not isinstance(end, int)
+        or start < 1
+        or end < 1
+    ):
         warn("dropped '%s': no usable line citation." % title)
         return None
     if end < start:
@@ -872,7 +1009,9 @@ def validate_finding(candidate, file_path, scanner_refs=None, line_budget=None):
     if not evidence:
         warn("dropped '%s': no evidence quoted." % title)
         return None
-    if (REPO_ROOT / file_path).is_file() and not evidence_matches(evidence, file_path, start, end):
+    if (REPO_ROOT / file_path).is_file() and not evidence_matches(
+        evidence, file_path, start, end
+    ):
         warn(
             "dropped '%s': the quoted evidence is not on lines %d-%d of %s."
             % (title, start, end, file_path)
@@ -890,7 +1029,11 @@ def validate_finding(candidate, file_path, scanner_refs=None, line_budget=None):
 
     refs = scanner_refs or []
     return {
-        "id": "%s:%d" % (file_path, start) if not refs else "%s:%s:%d" % (refs[0], file_path, start),
+        "id": (
+            "%s:%d" % (file_path, start)
+            if not refs
+            else "%s:%s:%d" % (refs[0], file_path, start)
+        ),
         "severity": severity,
         "title": title,
         "file": file_path,
@@ -912,7 +1055,9 @@ def triage_findings(config, prompts, scanner_findings, dry_run):
     rendered = []
 
     for scanner in scanner_findings:
-        source = numbered_source(REPO_ROOT / scanner["file"], config["review"]["sanitize_source"])
+        source = numbered_source(
+            REPO_ROOT / scanner["file"], config["review"]["sanitize_source"]
+        )
         if source is None:
             continue
         total_lines = source.count("\n") + 1
@@ -953,13 +1098,17 @@ def sweep_file(config, prompts, file_path, known, dry_run, changed=None):
     review only those lines, using the rest of the file as context, and
     findings in this file must touch a changed line.
     """
-    source = numbered_source(REPO_ROOT / file_path, config["review"]["sanitize_source"])
+    source = numbered_source(
+        REPO_ROOT / file_path, config["review"]["sanitize_source"]
+    )
     if source is None:
         return [], []
     total_lines = source.count("\n") + 1
 
     known_text = (
-        "\n".join("line %d: %s" % (k["line"], ", ".join(k["refs"])) for k in known)
+        "\n".join(
+            "line %d: %s" % (k["line"], ", ".join(k["refs"])) for k in known
+        )
         or "none"
     )
     user = (
@@ -980,10 +1129,16 @@ def sweep_file(config, prompts, file_path, known, dry_run, changed=None):
     schema = SWEEP_SCHEMA
     if config["review"]["repo_read"]:
         focus = (
-            "The pull request changed lines %s. Ask for the code those lines depend on."
-            % _ranges(changed)
-        ) if changed else ""
-        context, read_files = gather_context(config, prompts, file_path, source, focus)
+            (
+                "The pull request changed lines %s. Ask for the code those lines depend on."
+                % _ranges(changed)
+            )
+            if changed
+            else ""
+        )
+        context, read_files = gather_context(
+            config, prompts, file_path, source, focus
+        )
         if context:
             allowed |= read_files
             schema = SWEEP_READ_SCHEMA
@@ -1000,20 +1155,41 @@ def sweep_file(config, prompts, file_path, known, dry_run, changed=None):
 
     findings = []
     for candidate in result.get("findings", []):
-        cited = str(candidate.get("file") or file_path).strip() if isinstance(candidate, dict) else file_path
+        cited = (
+            str(candidate.get("file") or file_path).strip()
+            if isinstance(candidate, dict)
+            else file_path
+        )
         if cited not in allowed:
-            warn("dropped a finding citing %s, which the model did not read." % cited)
+            warn(
+                "dropped a finding citing %s, which the model did not read."
+                % cited
+            )
             continue
-        budget = total_lines if cited == file_path else len(
-            (REPO_ROOT / cited).read_text(encoding="utf-8", errors="replace").splitlines()
+        budget = (
+            total_lines
+            if cited == file_path
+            else len(
+                (REPO_ROOT / cited)
+                .read_text(encoding="utf-8", errors="replace")
+                .splitlines()
+            )
         )
         finding = validate_finding(candidate, cited, None, line_budget=budget)
         if not finding:
             continue
-        if changed and cited == file_path and not any(
-            finding["line_start"] <= n <= finding["line_end"] for n in changed
+        if (
+            changed
+            and cited == file_path
+            and not any(
+                finding["line_start"] <= n <= finding["line_end"]
+                for n in changed
+            )
         ):
-            warn("dropped '%s': not on a line this pull request changed." % finding["title"])
+            warn(
+                "dropped '%s': not on a line this pull request changed."
+                % finding["title"]
+            )
             continue
         findings.append(finding)
     return findings, []
@@ -1028,9 +1204,14 @@ def build_parser():
         description="AI-assisted security code review over scanner output.",
     )
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--file", help="review a single file, or every .py file under a directory")
+    source.add_argument(
+        "--file",
+        help="review a single file, or every .py file under a directory",
+    )
     source.add_argument("--diff", help="review a unified diff file")
-    source.add_argument("--staged", action="store_true", help="review git diff --cached")
+    source.add_argument(
+        "--staged", action="store_true", help="review git diff --cached"
+    )
 
     parser.add_argument(
         "--sarif",
@@ -1077,7 +1258,9 @@ def resolve_targets(args, config):
             fail("no such file or directory: %s" % args.file)
         return [path], None
 
-    diff_text = read_staged_diff() if args.staged else read_input_text(args.diff)
+    diff_text = (
+        read_staged_diff() if args.staged else read_input_text(args.diff)
+    )
     changed = parse_unified_diff(diff_text)
     files = []
     for name in changed:
@@ -1100,21 +1283,26 @@ def main(argv=None):
     if args.repo_read:
         config["review"]["repo_read"] = True
     if config["review"]["repo_read"] and "repo_read" not in prompts:
-        fail("repo-read is on, but %s has no '## repo_read' section." % PROMPT_PATH)
+        fail(
+            "repo-read is on, but %s has no '## repo_read' section."
+            % PROMPT_PATH
+        )
 
     files, changed_lines = resolve_targets(args, config)
     target_label = args.file or (args.diff if args.diff else "staged changes")
 
     if not files:
-        print(json.dumps(
-            {
-                "model": config["model"]["name"],
-                "target": target_label,
-                "findings": [],
-                "no_findings_reason": "The diff contained no reviewable files on disk.",
-            },
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {
+                    "model": config["model"]["name"],
+                    "target": target_label,
+                    "findings": [],
+                    "no_findings_reason": "The diff contained no reviewable files on disk.",
+                },
+                indent=2,
+            )
+        )
         return 0
 
     scanner_findings = []
@@ -1124,9 +1312,14 @@ def main(argv=None):
             if not sarif_path.is_file():
                 fail("no such SARIF file: %s" % args.sarif)
             try:
-                scanner_findings = parse_sarif(json.loads(read_input_text(sarif_path)))
+                scanner_findings = parse_sarif(
+                    json.loads(read_input_text(sarif_path))
+                )
             except json.JSONDecodeError:
-                fail("%s is not valid JSON. Expected a SARIF 2.1.0 document." % args.sarif)
+                fail(
+                    "%s is not valid JSON. Expected a SARIF 2.1.0 document."
+                    % args.sarif
+                )
             for finding in scanner_findings:
                 finding["refs"] = [finding["rule_id"]]
         else:
@@ -1134,14 +1327,18 @@ def main(argv=None):
 
         if changed_lines is not None:
             scanner_findings = [
-                f for f in scanner_findings if f["line"] in changed_lines.get(f["file"], set())
+                f
+                for f in scanner_findings
+                if f["line"] in changed_lines.get(f["file"], set())
             ]
 
     findings = []
     rendered = []
 
     if not args.no_scanner:
-        findings, rendered = triage_findings(config, prompts, scanner_findings, args.dry_run)
+        findings, rendered = triage_findings(
+            config, prompts, scanner_findings, args.dry_run
+        )
 
     if args.no_scanner or args.sweep:
         # Test files hold the exploits, so a cold review of them reports
@@ -1149,12 +1346,18 @@ def main(argv=None):
         # scanners still check test files; only the cold review skips them.
         skipped = [p for p in files if looks_like_test_code(_relative(p))]
         if skipped:
-            warn("the cold review skips %d test file(s); the scanner path still checks them." % len(skipped))
+            warn(
+                "the cold review skips %d test file(s); the scanner path still checks them."
+                % len(skipped)
+            )
         seen = [(f["file"], f["line_start"]) for f in findings]
 
         def already_reported(f):
             # The cold review often restates a scanner finding a line or two away.
-            return any(f["file"] == file and abs(f["line_start"] - line) <= 3 for file, line in seen)
+            return any(
+                f["file"] == file and abs(f["line_start"] - line) <= 3
+                for file, line in seen
+            )
 
         for path in files:
             rel = _relative(path)
@@ -1164,35 +1367,51 @@ def main(argv=None):
             # the cold review is told about them and asked for the rest.
             known = [s for s in scanner_findings if s["file"] == rel]
             found, render = sweep_file(
-                config, prompts, rel, known, args.dry_run,
+                config,
+                prompts,
+                rel,
+                known,
+                args.dry_run,
                 changed=(changed_lines or {}).get(rel),
             )
             findings += [f for f in found if not already_reported(f)]
             rendered += render
 
     if args.dry_run:
-        print(json.dumps(
-            {
-                "model": config["model"]["name"],
-                "target": target_label,
-                "dry_run": True,
-                "scanner_findings": len(scanner_findings),
-                "prompts": rendered,
-            },
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {
+                    "model": config["model"]["name"],
+                    "target": target_label,
+                    "dry_run": True,
+                    "scanner_findings": len(scanner_findings),
+                    "prompts": rendered,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     max_findings = config["review"]["max_findings"]
     if len(findings) > max_findings:
-        warn("emitting %d of %d findings, capped by review.max_findings." % (max_findings, len(findings)))
+        warn(
+            "emitting %d of %d findings, capped by review.max_findings."
+            % (max_findings, len(findings))
+        )
         findings = findings[:max_findings]
 
     severity_order = {name: index for index, name in enumerate(SEVERITIES)}
-    findings.sort(key=lambda f: (severity_order.get(f["severity"], 99), f["file"], f["line_start"]))
+    findings.sort(
+        key=lambda f: (
+            severity_order.get(f["severity"], 99),
+            f["file"],
+            f["line_start"],
+        )
+    )
     apply_suppressions(
         findings,
-        REPO_ROOT / config["review"].get("suppressions_file", SUPPRESSIONS_FILE),
+        REPO_ROOT
+        / config["review"].get("suppressions_file", SUPPRESSIONS_FILE),
         os.environ.get("REVIEW_SUPPRESSIONS_REF") or None,
     )
 
@@ -1201,22 +1420,26 @@ def main(argv=None):
         if args.no_scanner:
             no_findings_reason = "The model reviewed the code and reported nothing it could cite."
         elif not scanner_findings:
-            no_findings_reason = "The scanners reported nothing on the reviewed code."
+            no_findings_reason = (
+                "The scanners reported nothing on the reviewed code."
+            )
         else:
             no_findings_reason = (
                 "The scanners reported %d item(s), but none survived citation checking."
                 % len(scanner_findings)
             )
 
-    print(json.dumps(
-        {
-            "model": config["model"]["name"],
-            "target": target_label,
-            "findings": findings,
-            "no_findings_reason": no_findings_reason,
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "model": config["model"]["name"],
+                "target": target_label,
+                "findings": findings,
+                "no_findings_reason": no_findings_reason,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

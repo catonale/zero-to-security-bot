@@ -6,7 +6,6 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-
 HOST_ERROR = (
     "invalid Ollama host. Set OLLAMA_HOST or model.host to an HTTP(S) URL "
     "or host:port, for example http://127.0.0.1:11434."
@@ -50,7 +49,9 @@ def main():
     with Path(sys.argv[1]).open("rb") as handle:
         model = tomllib.load(handle)["model"]
     try:
-        host = normalize_ollama_host(os.environ.get("OLLAMA_HOST") or model.get("host"))
+        host = normalize_ollama_host(
+            os.environ.get("OLLAMA_HOST") or model.get("host")
+        )
     except ValueError as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 1

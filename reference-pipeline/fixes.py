@@ -32,12 +32,23 @@ def cited_lines(finding):
 
 def build_fix_user(finding, lines):
     start, end = finding["line_start"], finding["line_end"]
-    lo, hi = max(1, start - CONTEXT_LINES), min(len(lines), end + CONTEXT_LINES)
-    numbered = "\n".join("%d: %s" % (n, lines[n - 1]) for n in range(lo, hi + 1))
+    lo, hi = max(1, start - CONTEXT_LINES), min(
+        len(lines), end + CONTEXT_LINES
+    )
+    numbered = "\n".join(
+        "%d: %s" % (n, lines[n - 1]) for n in range(lo, hi + 1)
+    )
     return (
         "Finding: %s (%s)\nWhy: %s\nReplace lines %d to %d of %s.\n\nNumbered source:\n%s"
-        % (finding.get("title", ""), finding.get("severity", ""), finding.get("explanation", ""),
-           start, end, finding["file"], numbered)
+        % (
+            finding.get("title", ""),
+            finding.get("severity", ""),
+            finding.get("explanation", ""),
+            start,
+            end,
+            finding["file"],
+            numbered,
+        )
     )
 
 
@@ -47,7 +58,10 @@ def check_fix(original, replacement):
         return None
     if "```" in replacement:
         return None
-    new = [re.sub(r"^\s*\d+:\s?", "", line) for line in replacement.strip("\n").splitlines()]
+    new = [
+        re.sub(r"^\s*\d+:\s?", "", line)
+        for line in replacement.strip("\n").splitlines()
+    ]
     if len(new) > len(original) + MAX_EXTRA_LINES:
         return None
     if [l.rstrip() for l in new] == [l.rstrip() for l in original]:
@@ -71,11 +85,13 @@ def suggest_fix(config, prompts, finding):
         return None
     if end > len(lines):
         return None
-    result = review.call_model(config, prompts["fix"], build_fix_user(finding, lines), FIX_SCHEMA)
+    result = review.call_model(
+        config, prompts["fix"], build_fix_user(finding, lines), FIX_SCHEMA
+    )
     if not isinstance(result, dict):
         return None
     rationale = str(result.get("rationale", "")).strip()
-    new = check_fix(lines[start - 1:end], result.get("replacement"))
+    new = check_fix(lines[start - 1 : end], result.get("replacement"))
     if new is None:
         # No safe one-click patch: still pass on the advice, without a button.
         return {"lines": None, "rationale": rationale} if rationale else None

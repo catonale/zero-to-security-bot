@@ -26,7 +26,9 @@ def test_attack_applies_and_targets_are_found(name):
         for edit in spec["edits"]:
             run_attack.apply_edit(root, edit)
         for label, file, anchor, _span in spec["targets"]:
-            assert run_attack.anchor_line(root, file, anchor), "%s: cannot find %s in %s" % (name, label, file)
+            assert run_attack.anchor_line(
+                root, file, anchor
+            ), "%s: cannot find %s in %s" % (name, label, file)
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -40,6 +42,24 @@ def test_attack_changes_something(name):
         before = {f: (root / f).read_text(encoding="utf-8") for f in files}
         for edit in spec["edits"]:
             run_attack.apply_edit(root, edit)
-        assert any((root / f).read_text(encoding="utf-8") != before[f] for f in files)
+        assert any(
+            (root / f).read_text(encoding="utf-8") != before[f] for f in files
+        )
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+
+def test_sweep_flag_reaches_every_review(monkeypatch, tmp_path):
+    """--sweep measures attacks against the cold read too, as CI reviews."""
+    import subprocess
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, '{"findings": []}', "")
+
+    monkeypatch.setattr(run_attack.subprocess, "run", fake_run)
+    monkeypatch.setattr(run_attack, "REVIEW_FLAGS", ["--sweep"])
+    run_attack.review(tmp_path, ["target-app/app.py"])
+    assert calls and calls[0][-1] == "--sweep"

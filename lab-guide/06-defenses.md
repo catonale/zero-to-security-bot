@@ -6,15 +6,18 @@ All commands run from the repository root with the environment active.
 
 ## 1. Input sanitization
 
+> **How to turn a defense on.** Every command in this module goes in your terminal, from the repository root. You do not need to edit any file. Each defense is a switch:
+> - **For one command (this lab):** put `REVIEW_SANITIZE=1` in front of the command in bash, or run `$env:REVIEW_SANITIZE = "1"` first in PowerShell. That lets you compare off and on side by side. The audit log works the same way with `REVIEW_AUDIT_LOG=audit.jsonl`.
+> - **Permanently (how you would ship it):** in `reference-pipeline/config.toml`, change `sanitize_source = false` to `true`, or set `audit_log = "audit.jsonl"`.
+> - **PowerShell:** a `$env:` setting stays on for the whole window. Run the `Remove-Item Env:...` line after each block, or your next "off" run is really on. Check with `$env:REVIEW_SANITIZE` (empty means off).
+
 The attack that worked in Module 5 did not give the bot an instruction. It gave the bot a reason, in a docstring. The fix: the model never sees the author's comments or docstrings at all.
 
 See what the model sees with sanitizing off, then on:
 
 ```bash
-python reference-pipeline/review.py --file target-app/app.py --dry-run \
-  | python -c "import json,sys; print(json.load(sys.stdin)['prompts'][0]['user'])" | head -22
-REVIEW_SANITIZE=1 python reference-pipeline/review.py --file target-app/app.py --dry-run \
-  | python -c "import json,sys; print(json.load(sys.stdin)['prompts'][0]['user'])" | head -22
+python reference-pipeline/review.py --file target-app/app.py --dry-run | python -c "import json,sys; print(json.load(sys.stdin)['prompts'][0]['user'])" | head -22
+REVIEW_SANITIZE=1 python reference-pipeline/review.py --file target-app/app.py --dry-run | python -c "import json,sys; print(json.load(sys.stdin)['prompts'][0]['user'])" | head -22
 ```
 
 ```powershell
